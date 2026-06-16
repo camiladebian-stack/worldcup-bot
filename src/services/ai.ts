@@ -54,7 +54,7 @@ export async function askAI(
         continue;
       }
 
-      return content.trim();
+      return content.trim().replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "").replace(/^#{1,6}\s/gm, "").replace(/^\s*[-*]\s/gm, "").replace(/^\s*\d+\.\s/gm, "");
     } catch (error: any) {
       console.warn(`[AI] Model ${model} error:`, error.message);
       lastError = error;
