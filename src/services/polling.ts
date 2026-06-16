@@ -152,7 +152,7 @@ export class PollingService {
     this.lastScores.delete(match.id);
     this.initializedScores.delete(match.id);
 
-    if (this.aiConfig.geminiApiKey || this.aiConfig.openrouterApiKey) {
+    if (this.aiConfig.groqApiKey || this.aiConfig.openrouterApiKey) {
       generateMatchAnalysis(match, this.aiConfig)
         .then((analysis) => this.notificationService.sendAnalysis(match, analysis))
         .catch((err) => console.error("[Polling] Failed to generate analysis:", err));

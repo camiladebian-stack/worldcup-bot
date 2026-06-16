@@ -18,7 +18,7 @@ import express from "express";
 import dotenv from "dotenv";
 
 import { setApiKey } from "./services/api";
-import { askAI, AIProviderConfig } from "./services/ai";
+import { askAI, AIProviderConfig, AIProvider } from "./services/ai";
 import {
   initializePool,
   initializeDatabase,
@@ -43,8 +43,8 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const NOTIFICATION_CHANNEL_ID = process.env.NOTIFICATION_CHANNEL_ID!;
 const PING_ROLE_ID = process.env.PING_ROLE_ID || "";
 const COMPETITION_CODE = process.env.COMPETITION_CODE || "WC";
-const AI_PROVIDER = (process.env.AI_PROVIDER || "openrouter") as "gemini" | "openrouter";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const AI_PROVIDER = (process.env.AI_PROVIDER || "groq") as AIProvider;
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const AI_API_KEY = process.env.AI_API_KEY || "";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
@@ -52,7 +52,7 @@ const MAX_AI_INPUT = 2000;
 
 // AI Provider Configuration
 const aiConfig: AIProviderConfig = {
-  geminiApiKey: GEMINI_API_KEY,
+  groqApiKey: GROQ_API_KEY,
   openrouterApiKey: AI_API_KEY,
   preferredProvider: AI_PROVIDER,
 };
@@ -219,7 +219,7 @@ async function main(): Promise<void> {
     }
 
     if (!message.content.startsWith("!ai ")) return;
-    if (!aiConfig.geminiApiKey && !aiConfig.openrouterApiKey) return;
+    if (!aiConfig.groqApiKey && !aiConfig.openrouterApiKey) return;
 
     const question = message.content.slice(4).trim();
     if (!question) {
