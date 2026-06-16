@@ -3,6 +3,7 @@ import { Match } from "../types";
 // ── Configuration ───────────────────────────────────────────────────
 const REQUEST_TIMEOUT = 30_000;
 const MAX_INPUT_LENGTH = 2000;
+const AI_RATE_LIMIT_MS = 5_000; // 5 seconds between AI requests to avoid API saturation
 
 // ── Groq Configuration ──────────────────────────────────────────────
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -17,6 +18,26 @@ const OPENROUTER_MODELS = [
   "mistralai/mistral-small-3.2-24b-instruct:free",
   "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
 ];
+
+// ── Global AI Rate Limiter ──────────────────────────────────────────
+let lastAiRequestTime = 0;
+let aiQueue: Promise<void> = Promise.resolve();
+
+function enqueueAiRequest(): Promise<void> {
+  const previous = aiQueue;
+  let resolve: () => void;
+  const next = new Promise<void>((r) => { resolve = r; });
+  aiQueue = next;
+  return previous.then(async () => {
+    const now = Date.now();
+    const elapsed = now - lastAiRequestTime;
+    if (elapsed < AI_RATE_LIMIT_MS) {
+      await new Promise((r) => setTimeout(r, AI_RATE_LIMIT_MS - elapsed));
+    }
+    lastAiRequestTime = Date.now();
+    resolve!();
+  });
+}
 
 // ── Types ───────────────────────────────────────────────────────────
 export type AIProvider = "groq" | "openrouter";
@@ -124,6 +145,9 @@ async function askOpenRouter(
 
       if (!response.ok) {
         const text = await response.text();
+        if (response.status === 429) {
+          throw new Error(`OpenRouter rate limited (429) - all models share same quota`);
+        }
         console.warn(`[AI] OpenRouter model ${model} failed (${response.status}): ${text}`);
         continue;
       }
@@ -177,6 +201,7 @@ export async function askAI(
   question: string,
   config: AIProviderConfig
 ): Promise<string> {
+  await enqueueAiRequest();
   const truncated = question.slice(0, MAX_INPUT_LENGTH);
   const systemPrompt =
     "You are a highly intelligent, direct, and concise assistant. " +
@@ -205,6 +230,7 @@ export async function generateMatchAnalysis(
   match: Match,
   config: AIProviderConfig
 ): Promise<string> {
+  await enqueueAiRequest();
   const home = match.score.fullTime.home ?? 0;
   const away = match.score.fullTime.away ?? 0;
   const htHome = match.score.halfTime.home ?? 0;
