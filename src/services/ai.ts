@@ -1,3 +1,5 @@
+import { Match } from "../types";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT = 30_000;
 const MAX_INPUT_LENGTH = 2000;
@@ -76,6 +78,82 @@ export async function askAI(
       return stripMarkdown(content.trim());
     } catch (error: any) {
       console.warn(`[AI] Model ${model} error:`, error.message);
+      lastError = error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw lastError || new Error("All AI models failed");
+}
+
+export async function generateMatchAnalysis(
+  match: Match,
+  apiKey: string
+): Promise<string> {
+  const home = match.score.fullTime.home ?? 0;
+  const away = match.score.fullTime.away ?? 0;
+  const htHome = match.score.halfTime.home ?? 0;
+  const htAway = match.score.halfTime.away ?? 0;
+
+  const stage = match.stage?.replace(/_/g, " ") || "Group Stage";
+  const group = match.group || "";
+  const matchday = match.matchday || "";
+
+  const prompt = `Write a short, fun post-match analysis for this FIFA World Cup match.
+
+Match: ${match.homeTeam.name} ${home} - ${away} ${match.awayTeam.name}
+Half-time: ${htHome} - ${htAway}
+Stage: ${stage}${group ? ` | Group ${group}` : ""}${matchday ? ` | Matchday ${matchday}` : ""}
+
+Write 3-4 short paragraphs. Be enthusiastic and engaging. Mention key moments implied by the score. If it was a big win, talk about dominance. If it was close, talk about the tension. If there was a big HT difference, mention the comeback or collapse. Keep it under 400 characters. Do not use markdown formatting.`;
+
+  let lastError: Error | null = null;
+
+  for (const model of MODELS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    try {
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://github.com/camiladebian-stack/worldcup-bot",
+          "X-Title": "WorldCup Discord Bot",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a fun, enthusiastic football commentator. Write engaging post-match analysis. Be concise and exciting. No markdown.",
+            },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 300,
+          temperature: 0.8,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        lastError = new Error(`AI API error ${response.status}`);
+        continue;
+      }
+
+      const data = (await response.json()) as any;
+      const content = data.choices?.[0]?.message?.content;
+
+      if (!content) {
+        lastError = new Error("Empty response from AI");
+        continue;
+      }
+
+      return stripMarkdown(content.trim());
+    } catch (error: any) {
       lastError = error;
     } finally {
       clearTimeout(timeout);

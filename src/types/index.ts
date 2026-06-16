@@ -73,6 +73,7 @@ export enum EventType {
   HALFTIME = "halftime",
   FULLTIME = "fulltime",
   REMINDER = "reminder",
+  ANALYSIS = "analysis",
 }
 
 export interface ApiResponse<T> {

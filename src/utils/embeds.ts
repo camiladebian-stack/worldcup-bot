@@ -1,6 +1,6 @@
 import { EmbedBuilder, ColorResolvable } from "discord.js";
 import { Match, MatchStatus, Standing } from "../types";
-import { toArgentinaTime, toArgentinaDateTime, formatCountdown } from "./timezone";
+import { toArgentinaTime, toArgentinaDateTime, formatCountdown, minutesUntil } from "./timezone";
 
 const COLORS: Record<string, ColorResolvable> = {
   live: 0xff4500,
@@ -343,7 +343,61 @@ export function buildHelpEmbed(): EmbedBuilder {
       { name: "/match [team]", value: "Search matches for a specific team", inline: false },
       { name: "/standings", value: "Show current group standings", inline: false },
       { name: "/timezone argentina", value: "Show current time in Argentina (ART)", inline: false },
-      { name: "/help", value: "Show this help message", inline: false }
+      { name: "/help", value: "Show this help message", inline: false },
+      { name: "!join", value: "Bot joins your voice channel", inline: false },
+      { name: "!leave", value: "Bot leaves voice channel", inline: false },
+      { name: "!ai [question]", value: "Ask the AI anything", inline: false }
     )
     .setFooter({ text: "All times shown in Argentina time (ART)" });
+}
+
+export function buildCountdownEmbed(match: Match): EmbedBuilder {
+  const minutes = minutesUntil(match.utcDate);
+  const time = toArgentinaTime(match.utcDate);
+  const countdown = formatCountdown(match.utcDate);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`⏳ Next Match — ${countdown}`)
+    .setDescription(`**${match.homeTeam.name}** vs **${match.awayTeam.name}**`)
+    .setColor(COLORS.scheduled)
+    .addFields(
+      { name: "Kickoff (Argentina)", value: `\`${time}\``, inline: true },
+      { name: "Countdown", value: `\`${countdown}\``, inline: true }
+    )
+    .setTimestamp();
+
+  if (match.homeTeam.crest) {
+    embed.setThumbnail(match.homeTeam.crest);
+  }
+
+  if (match.group) {
+    embed.addFields({ name: "Group", value: match.group, inline: true });
+  }
+
+  if (match.stage && match.stage !== "GROUP_STAGE") {
+    embed.addFields({
+      name: "Stage",
+      value: match.stage.replace(/_/g, " "),
+      inline: true,
+    });
+  }
+
+  return embed;
+}
+
+export function buildAnalysisEmbed(match: Match, analysis: string): EmbedBuilder {
+  const home = match.score.fullTime.home ?? 0;
+  const away = match.score.fullTime.away ?? 0;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🤖 Match Analysis — ${match.homeTeam.tla} ${home} - ${away} ${match.awayTeam.tla}`)
+    .setDescription(analysis)
+    .setColor(0x5865f2)
+    .setTimestamp();
+
+  if (match.homeTeam.crest) {
+    embed.setThumbnail(match.homeTeam.crest);
+  }
+
+  return embed;
 }

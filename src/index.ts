@@ -26,6 +26,7 @@ import {
 } from "./services/database";
 import { NotificationService } from "./services/notifications";
 import { PollingService } from "./services/polling";
+import { CountdownService } from "./services/countdown";
 import { matchCommand, executeMatch } from "./commands/match";
 import { timezoneCommand, executeTimezone } from "./commands/timezone";
 import { helpCommand, executeHelp } from "./commands/help";
@@ -57,6 +58,7 @@ const client = new Client({
 
 let notificationService: NotificationService;
 let pollingService: PollingService;
+let countdownService: CountdownService;
 
 const commands = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 
@@ -122,7 +124,8 @@ async function initializeBot(): Promise<void> {
     PING_ROLE_ID
   );
 
-  pollingService = new PollingService(notificationService, COMPETITION_CODE);
+  pollingService = new PollingService(notificationService, COMPETITION_CODE, AI_API_KEY);
+  countdownService = new CountdownService(client, NOTIFICATION_CHANNEL_ID, COMPETITION_CODE);
 }
 
 async function main(): Promise<void> {
@@ -242,7 +245,9 @@ async function main(): Promise<void> {
     console.log(`[Bot] Notification channel: ${NOTIFICATION_CHANNEL_ID}`);
 
     pollingService.start();
+    countdownService.start();
     console.log("[Bot] Polling service started");
+    console.log("[Bot] Countdown service started");
   });
 
   client.on(Events.Error, (error) => {
@@ -260,6 +265,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", async () => {
     console.log("[Bot] Received SIGTERM, shutting down...");
     pollingService?.stop();
+    countdownService?.stop();
     for (const guild of client.guilds.cache.values()) {
       const conn = getVoiceConnection(guild.id);
       if (conn) conn.destroy();
@@ -272,6 +278,7 @@ async function main(): Promise<void> {
   process.on("SIGINT", async () => {
     console.log("[Bot] Received SIGINT, shutting down...");
     pollingService?.stop();
+    countdownService?.stop();
     for (const guild of client.guilds.cache.values()) {
       const conn = getVoiceConnection(guild.id);
       if (conn) conn.destroy();

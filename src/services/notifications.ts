@@ -10,6 +10,7 @@ import {
   buildMatchStartEmbed,
   buildMatchEndEmbed,
   buildRematchEmbed,
+  buildAnalysisEmbed,
 } from "../utils/embeds";
 
 export class NotificationService {
@@ -129,6 +130,19 @@ export class NotificationService {
 
     if (sent) {
       await markEventNotified(match.id, EventType.FULLTIME, new Date(match.utcDate));
+    }
+    return sent;
+  }
+
+  async sendAnalysis(match: Match, analysis: string): Promise<boolean> {
+    if (await isEventNotified(match.id, EventType.ANALYSIS)) return false;
+
+    const sent = await this.safeSend({
+      embeds: [buildAnalysisEmbed(match, analysis)],
+    });
+
+    if (sent) {
+      await markEventNotified(match.id, EventType.ANALYSIS, new Date(match.utcDate));
     }
     return sent;
   }
