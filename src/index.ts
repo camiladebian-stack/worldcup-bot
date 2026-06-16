@@ -11,6 +11,7 @@ import express from "express";
 import dotenv from "dotenv";
 
 import { setApiKey } from "./services/api";
+import { askAI } from "./services/ai";
 import {
   initializePool,
   initializeDatabase,
@@ -33,10 +34,15 @@ const DATABASE_URL = process.env.DATABASE_URL!;
 const NOTIFICATION_CHANNEL_ID = process.env.NOTIFICATION_CHANNEL_ID!;
 const PING_ROLE_ID = process.env.PING_ROLE_ID || "";
 const COMPETITION_CODE = process.env.COMPETITION_CODE || "WC";
+const AI_API_KEY = process.env.AI_API_KEY || "";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 let notificationService: NotificationService;
@@ -138,6 +144,35 @@ async function main(): Promise<void> {
       } else {
         await interaction.reply(reply);
       }
+    }
+  });
+
+  client.on(Events.MessageCreate, async (message) => {
+    if (message.author.bot) return;
+    if (!message.content.startsWith("!ask ")) return;
+    if (!AI_API_KEY) return;
+
+    const question = message.content.slice(5).trim();
+    if (!question) {
+      await message.reply("Usage: `!ask <your question>`");
+      return;
+    }
+
+    try {
+      await message.channel.sendTyping();
+      const answer = await askAI(question, AI_API_KEY);
+
+      if (answer.length > 2000) {
+        const chunks = answer.match(/.{1,2000}/gs) || [answer];
+        for (const chunk of chunks) {
+          await message.reply(chunk);
+        }
+      } else {
+        await message.reply(answer);
+      }
+    } catch (error: any) {
+      console.error("[Bot] AI error:", error);
+      await message.reply("❌ Error getting AI response. Please try again.");
     }
   });
 
