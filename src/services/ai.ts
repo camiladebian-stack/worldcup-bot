@@ -1,10 +1,11 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const MODELS = [
+  "deepseek/deepseek-chat-v3.1:free",
   "meta-llama/llama-3.3-70b-instruct:free",
   "qwen/qwen3-235b-a22b:free",
-  "deepseek/deepseek-chat-v3.1:free",
-  "google/gemma-3-27b-it:free",
+  "openai/gpt-oss-120b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
 ];
 
 export async function askAI(
@@ -38,30 +39,25 @@ export async function askAI(
         }),
       });
 
-      if (response.status === 429) {
-        const retryAfter = parseInt(response.headers.get("Retry-After") || "10", 10);
-        await new Promise((r) => setTimeout(r, retryAfter * 1000));
-        continue;
-      }
-
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`AI API error ${response.status}: ${text}`);
+        console.warn(`[AI] Model ${model} failed (${response.status}): ${text}`);
+        lastError = new Error(`AI API error ${response.status}`);
+        continue;
       }
 
       const data = (await response.json()) as any;
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
-        throw new Error("Empty response from AI");
+        lastError = new Error("Empty response from AI");
+        continue;
       }
 
       return content.trim();
     } catch (error: any) {
+      console.warn(`[AI] Model ${model} error:`, error.message);
       lastError = error;
-      if (error.message.includes("429")) {
-        continue;
-      }
     }
   }
 
