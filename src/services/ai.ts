@@ -1,15 +1,17 @@
-const SILICONFLOW_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const MODEL = "Qwen/Qwen3-8B";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "meta-llama/llama-3.3-70b-instruct:free";
 
 export async function askAI(
   question: string,
   apiKey: string
 ): Promise<string> {
-  const response = await fetch(SILICONFLOW_URL, {
+  const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://github.com/camiladebian-stack/worldcup-bot",
+      "X-Title": "WorldCup Discord Bot",
     },
     body: JSON.stringify({
       model: MODEL,
