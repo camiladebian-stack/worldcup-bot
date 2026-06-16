@@ -163,10 +163,11 @@ async function main(): Promise<void> {
       const answer = await askAI(question, AI_API_KEY);
 
       if (answer.length > 2000) {
-        const chunks = answer.match(/.{1,2000}/gs) || [answer];
-        for (const chunk of chunks) {
-          await message.reply(chunk);
-        }
+        const buffer = Buffer.from(answer, "utf-8");
+        await message.reply({
+          content: "Response too long, here's the full text:",
+          files: [{ attachment: buffer, name: "response.txt" }],
+        });
       } else {
         await message.reply(answer);
       }
