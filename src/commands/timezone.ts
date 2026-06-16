@@ -9,11 +9,11 @@ const ART_TIMEZONE = "America/Argentina/Buenos_Aires";
 
 export const timezoneCommand = new SlashCommandBuilder()
   .setName("timezone")
-  .setDescription("Consulta horarios")
+  .setDescription("Check time zones")
   .addSubcommand((sub) =>
     sub
       .setName("argentina")
-      .setDescription("Muestra la hora actual en Argentina")
+      .setDescription("Show current time in Argentina")
   );
 
 export async function executeTimezone(
@@ -24,23 +24,15 @@ export async function executeTimezone(
   if (subcommand === "argentina") {
     const now = new Date();
     const artTime = formatInTimeZone(now, ART_TIMEZONE, "HH:mm:ss");
-    const artDate = formatInTimeZone(now, ART_TIMEZONE, "EEEE, dd 'de' MMMM 'de' yyyy");
+    const artDate = formatInTimeZone(now, ART_TIMEZONE, "EEEE, MMMM dd, yyyy");
 
     const embed = new EmbedBuilder()
-      .setTitle("🕐 Hora en Argentina")
+      .setTitle("🕐 Argentina Time")
       .setDescription(`**${artTime}**`)
       .setColor(0x74a9d1)
       .addFields(
-        {
-          name: "Fecha",
-          value: artDate,
-          inline: true,
-        },
-        {
-          name: "Zona horaria",
-          value: "ART (UTC-3)",
-          inline: true,
-        }
+        { name: "Date", value: artDate, inline: true },
+        { name: "Timezone", value: "ART (UTC-3)", inline: true }
       )
       .setTimestamp();
 

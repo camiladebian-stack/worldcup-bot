@@ -6,7 +6,7 @@ import { buildHelpEmbed } from "../utils/embeds";
 
 export const helpCommand = new SlashCommandBuilder()
   .setName("help")
-  .setDescription("Muestra la ayuda del bot");
+  .setDescription("Show bot help");
 
 export async function executeHelp(
   interaction: ChatInputCommandInteraction

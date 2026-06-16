@@ -13,18 +13,18 @@ const COLORS: Record<string, ColorResolvable> = {
 function statusEmoji(status: MatchStatus): string {
   switch (status) {
     case MatchStatus.IN_PLAY:
-      return "🔴 EN VIVO";
+      return "🔴 LIVE";
     case MatchStatus.PAUSED:
-      return "⏸️ ENTRETIEMPO";
+      return "⏸️ HALF TIME";
     case MatchStatus.FINISHED:
-      return "✅ FINALIZADO";
+      return "✅ FINISHED";
     case MatchStatus.SCHEDULED:
     case MatchStatus.TIMED:
-      return "⏰ PROGRAMADO";
+      return "⏰ SCHEDULED";
     case MatchStatus.POSTPONED:
-      return "❌ POSTERGADO";
+      return "❌ POSTPONED";
     case MatchStatus.CANCELLED:
-      return "🚫 CANCELADO";
+      return "🚫 CANCELLED";
     default:
       return status;
   }
@@ -44,17 +44,17 @@ function statusColor(status: MatchStatus): ColorResolvable {
 }
 
 function scoreLine(match: Match): string {
-  const home = match.score.fullTime.home ?? 0;
-  const away = match.score.fullTime.away ?? 0;
-
   if (match.status === MatchStatus.SCHEDULED || match.status === MatchStatus.TIMED) {
     return "vs";
   }
 
+  const home = match.score.fullTime.home ?? 0;
+  const away = match.score.fullTime.away ?? 0;
+
   if (match.status === MatchStatus.IN_PLAY || match.status === MatchStatus.PAUSED) {
     const htHome = match.score.halfTime.home ?? 0;
     const htAway = match.score.halfTime.away ?? 0;
-    return `**${home}** - **${away}** (ET: ${htHome}-${htAway})`;
+    return `**${home}** - **${away}** (HT: ${htHome}-${htAway})`;
   }
 
   return `**${home}** - **${away}**`;
@@ -66,21 +66,9 @@ export function buildMatchEmbed(match: Match): EmbedBuilder {
     .setDescription(statusEmoji(match.status))
     .setColor(statusColor(match.status))
     .addFields(
-      {
-        name: match.homeTeam.name,
-        value: match.homeTeam.tla,
-        inline: true,
-      },
-      {
-        name: scoreLine(match),
-        value: "\u200B",
-        inline: true,
-      },
-      {
-        name: match.awayTeam.name,
-        value: match.awayTeam.tla,
-        inline: true,
-      }
+      { name: match.homeTeam.name, value: match.homeTeam.tla, inline: true },
+      { name: scoreLine(match), value: "\u200B", inline: true },
+      { name: match.awayTeam.name, value: match.awayTeam.tla, inline: true }
     )
     .setTimestamp();
 
@@ -90,31 +78,23 @@ export function buildMatchEmbed(match: Match): EmbedBuilder {
 
   if (match.status === MatchStatus.SCHEDULED || match.status === MatchStatus.TIMED) {
     embed.addFields({
-      name: "Horario (Argentina)",
+      name: "Kickoff (Argentina)",
       value: `\`${toArgentinaDateTime(match.utcDate)}\` (${formatCountdown(match.utcDate)})`,
       inline: false,
     });
   }
 
   if (match.group) {
-    embed.addFields({
-      name: "Grupo",
-      value: match.group,
-      inline: true,
-    });
+    embed.addFields({ name: "Group", value: match.group, inline: true });
   }
 
   if (match.matchday) {
-    embed.addFields({
-      name: "Fecha",
-      value: `${match.matchday}`,
-      inline: true,
-    });
+    embed.addFields({ name: "Matchday", value: `${match.matchday}`, inline: true });
   }
 
   if (match.stage && match.stage !== "GROUP_STAGE") {
     embed.addFields({
-      name: "Fase",
+      name: "Stage",
       value: match.stage.replace(/_/g, " "),
       inline: true,
     });
@@ -128,7 +108,7 @@ export function buildGoalEmbed(match: Match, scorer?: string): EmbedBuilder {
   const away = match.score.fullTime.away ?? 0;
 
   const embed = new EmbedBuilder()
-    .setTitle("⚽ ¡GOOOOOL!")
+    .setTitle("⚽ GOOOAL!")
     .setDescription(
       `**${match.homeTeam.name}** ${home} - ${away} **${match.awayTeam.name}**`
     )
@@ -136,12 +116,12 @@ export function buildGoalEmbed(match: Match, scorer?: string): EmbedBuilder {
     .setTimestamp();
 
   if (scorer) {
-    embed.addFields({ name: "Gol de", value: scorer, inline: true });
+    embed.addFields({ name: "Scored by", value: scorer, inline: true });
   }
 
   embed.addFields({
-    name: "Minuto",
-    value: `${toArgentinaTime(match.utcDate)}`,
+    name: "Time",
+    value: `${toArgentinaTime(match.utcDate)} ART`,
     inline: true,
   });
 
@@ -155,19 +135,11 @@ export function buildGoalEmbed(match: Match, scorer?: string): EmbedBuilder {
 export function buildRematchEmbed(match: Match): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(`⚽ ${match.homeTeam.name} vs ${match.awayTeam.name}`)
-    .setDescription("El partido comienza en **5 minutos**")
+    .setDescription("Match starts in **5 minutes**")
     .setColor(COLORS.scheduled)
     .addFields(
-      {
-        name: "Horario (Argentina)",
-        value: `\`${toArgentinaTime(match.utcDate)}\``,
-        inline: true,
-      },
-      {
-        name: "Competición",
-        value: match.competition.name,
-        inline: true,
-      }
+      { name: "Kickoff (Argentina)", value: `\`${toArgentinaTime(match.utcDate)}\``, inline: true },
+      { name: "Competition", value: match.competition.name, inline: true }
     )
     .setThumbnail(match.homeTeam.crest)
     .setTimestamp();
@@ -175,11 +147,11 @@ export function buildRematchEmbed(match: Match): EmbedBuilder {
 
 export function buildMatchStartEmbed(match: Match): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle(`🏟️ ¡Comienza el partido!`)
+    .setTitle("🏟️ Match Started!")
     .setDescription(`**${match.homeTeam.name}** vs **${match.awayTeam.name}**`)
     .setColor(COLORS.live)
     .addFields({
-      name: "Estado",
+      name: "Status",
       value: statusEmoji(MatchStatus.IN_PLAY),
       inline: true,
     })
@@ -192,7 +164,7 @@ export function buildMatchEndEmbed(match: Match): EmbedBuilder {
   const away = match.score.fullTime.away ?? 0;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🏁 Partido Finalizado`)
+    .setTitle("🏁 Full Time")
     .setDescription(
       `**${match.homeTeam.name}** ${home} - ${away} **${match.awayTeam.name}**`
     )
@@ -211,7 +183,7 @@ export function buildStandingsEmbed(
   competitionName: string
 ): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`📊 Clasificación - ${competitionName}`)
+    .setTitle(`📊 Standings - ${competitionName}`)
     .setColor(COLORS.default)
     .setTimestamp();
 
@@ -220,7 +192,7 @@ export function buildStandingsEmbed(
 
     const lines = standing.table.map(
       (entry) =>
-        `\`${entry.position.toString().padStart(2)}\` **${entry.team.tla}** | ${entry.playedGames}PJ ${entry.won}G ${entry.draw}E ${entry.lost}P | **${entry.points}**pts | ${entry.goalsFor}:${entry.goalsAgainst} (${entry.goalDifference > 0 ? "+" : ""}${entry.goalDifference})`
+        `\`${entry.position.toString().padStart(2)}\` **${entry.team.tla}** | ${entry.playedGames}P ${entry.won}W ${entry.draw}D ${entry.lost}L | **${entry.points}**pts | ${entry.goalsFor}:${entry.goalsAgainst} (${entry.goalDifference > 0 ? "+" : ""}${entry.goalDifference})`
     );
 
     embed.addFields({
@@ -233,17 +205,14 @@ export function buildStandingsEmbed(
   return embed;
 }
 
-export function buildScheduleEmbed(
-  matches: Match[],
-  title: string
-): EmbedBuilder {
+export function buildScheduleEmbed(matches: Match[], title: string): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(title)
     .setColor(COLORS.scheduled)
     .setTimestamp();
 
   if (matches.length === 0) {
-    embed.setDescription("No hay partidos programados.");
+    embed.setDescription("No upcoming matches scheduled.");
     return embed;
   }
 
@@ -259,12 +228,12 @@ export function buildScheduleEmbed(
 
 export function buildTodayEmbed(matches: Match[]): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle("📅 Partidos de Hoy (Argentina)")
+    .setTitle("📅 Today's Matches (Argentina)")
     .setColor(COLORS.scheduled)
     .setTimestamp();
 
   if (matches.length === 0) {
-    embed.setDescription("No hay partidos hoy.");
+    embed.setDescription("No matches today.");
     return embed;
   }
 
@@ -276,12 +245,12 @@ export function buildTodayEmbed(matches: Match[]): EmbedBuilder {
       case MatchStatus.IN_PLAY:
         const h = match.score.fullTime.home ?? 0;
         const a = match.score.fullTime.away ?? 0;
-        status = `🔴 EN VIVO **${h}-${a}**`;
+        status = `🔴 LIVE **${h}-${a}**`;
         break;
       case MatchStatus.PAUSED:
         const hh = match.score.halfTime.home ?? 0;
         const ah = match.score.halfTime.away ?? 0;
-        status = `⏸️ ET **${hh}-${ah}**`;
+        status = `⏸️ HT **${hh}-${ah}**`;
         break;
       case MatchStatus.FINISHED:
         const fh = match.score.fullTime.home ?? 0;
@@ -301,20 +270,19 @@ export function buildTodayEmbed(matches: Match[]): EmbedBuilder {
 
 export function buildLiveEmbed(matches: Match[]): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle("🔴 Partidos en Vivo")
+    .setTitle("🔴 Live Matches")
     .setColor(COLORS.live)
     .setTimestamp();
 
   if (matches.length === 0) {
-    embed.setDescription("No hay partidos en vivo ahora mismo.");
+    embed.setDescription("No live matches right now.");
     return embed;
   }
 
   const lines = matches.map((match) => {
     const home = match.score.fullTime.home ?? 0;
     const away = match.score.fullTime.away ?? 0;
-    const status =
-      match.status === MatchStatus.PAUSED ? " (Entretiempo)" : "";
+    const status = match.status === MatchStatus.PAUSED ? " (HT)" : "";
     return `**${match.homeTeam.tla}** **${home}** - **${away}** **${match.awayTeam.tla}**${status}`;
   });
 
@@ -327,12 +295,12 @@ export function buildTeamMatchesEmbed(
   teamName: string
 ): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`⚽ Partidos de ${teamName}`)
+    .setTitle(`⚽ Matches for ${teamName}`)
     .setColor(COLORS.scheduled)
     .setTimestamp();
 
   if (matches.length === 0) {
-    embed.setDescription(`No se encontraron partidos para ${teamName}.`);
+    embed.setDescription(`No matches found for ${teamName}.`);
     return embed;
   }
 
@@ -365,45 +333,17 @@ export function buildTeamMatchesEmbed(
 
 export function buildHelpEmbed(): EmbedBuilder {
   return new EmbedBuilder()
-    .setTitle("🏆 World Cup Bot - Comandos")
-    .setDescription("Bot de actualización en tiempo real de la Copa Mundial FIFA")
+    .setTitle("🏆 World Cup Bot - Commands")
+    .setDescription("Real-time FIFA World Cup match updates bot")
     .setColor(COLORS.default)
     .addFields(
-      {
-        name: "/match today",
-        value: "Muestra todos los partidos de hoy",
-        inline: false,
-      },
-      {
-        name: "/match live",
-        value: "Muestra los partidos que están en vivo ahora",
-        inline: false,
-      },
-      {
-        name: "/match upcoming",
-        value: "Muestra los próximos partidos programados",
-        inline: false,
-      },
-      {
-        name: "/match [team]",
-        value: "Busca partidos de un equipo específico",
-        inline: false,
-      },
-      {
-        name: "/standings",
-        value: "Muestra la tabla de posiciones actual",
-        inline: false,
-      },
-      {
-        name: "/timezone argentina",
-        value: "Muestra la hora actual en Argentina (ART)",
-        inline: false,
-      },
-      {
-        name: "/help",
-        value: "Muestra esta ayuda",
-        inline: false,
-      }
+      { name: "/match today", value: "Show all of today's matches", inline: false },
+      { name: "/match live", value: "Show matches currently live", inline: false },
+      { name: "/match upcoming", value: "Show upcoming scheduled matches", inline: false },
+      { name: "/match [team]", value: "Search matches for a specific team", inline: false },
+      { name: "/standings", value: "Show current group standings", inline: false },
+      { name: "/timezone argentina", value: "Show current time in Argentina (ART)", inline: false },
+      { name: "/help", value: "Show this help message", inline: false }
     )
-    .setFooter({ text: "Todos los horarios están en hora Argentina (ART)" });
+    .setFooter({ text: "All times shown in Argentina time (ART)" });
 }

@@ -13,24 +13,24 @@ import {
 
 export const matchCommand = new SlashCommandBuilder()
   .setName("match")
-  .setDescription("Consulta partidos de la Copa Mundial")
+  .setDescription("Look up World Cup matches")
   .addSubcommand((sub) =>
-    sub.setName("today").setDescription("Partidos de hoy")
+    sub.setName("today").setDescription("Today's matches")
   )
   .addSubcommand((sub) =>
-    sub.setName("live").setDescription("Partidos en vivo ahora")
+    sub.setName("live").setDescription("Matches live right now")
   )
   .addSubcommand((sub) =>
-    sub.setName("upcoming").setDescription("Próximos partidos")
+    sub.setName("upcoming").setDescription("Upcoming matches")
   )
   .addSubcommand((sub) =>
     sub
       .setName("team")
-      .setDescription("Partidos de un equipo")
+      .setDescription("Matches for a specific team")
       .addStringOption((opt) =>
         opt
-          .setName("nombre")
-          .setDescription("Nombre o sigla del equipo")
+          .setName("name")
+          .setDescription("Team name or abbreviation")
           .setRequired(true)
       )
   );
@@ -61,16 +61,13 @@ export async function executeMatch(
 
       case "upcoming": {
         const matches = await api.getUpcomingMatches(competitionCode);
-        const embed = buildScheduleEmbed(
-          matches,
-          "Próximos Partidos"
-        );
+        const embed = buildScheduleEmbed(matches, "Upcoming Matches");
         await interaction.editReply({ embeds: [embed] });
         break;
       }
 
       case "team": {
-        const teamName = interaction.options.getString("nombre", true);
+        const teamName = interaction.options.getString("name", true);
         const matches = await api.getTeamMatches(competitionCode, teamName);
         const embed = buildTeamMatchesEmbed(matches, teamName);
         await interaction.editReply({ embeds: [embed] });
@@ -80,7 +77,7 @@ export async function executeMatch(
   } catch (error: any) {
     console.error(`[Command] Error in /match ${subcommand}:`, error);
     await interaction.editReply({
-      content: "❌ Error al obtener los datos. Intenta de nuevo en unos segundos.",
+      content: "❌ Error fetching data. Please try again in a few seconds.",
     });
   }
 }

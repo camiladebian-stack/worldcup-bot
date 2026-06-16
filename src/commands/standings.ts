@@ -7,7 +7,7 @@ import { buildStandingsEmbed } from "../utils/embeds";
 
 export const standingsCommand = new SlashCommandBuilder()
   .setName("standings")
-  .setDescription("Muestra la tabla de posiciones");
+  .setDescription("Show group standings");
 
 export async function executeStandings(
   interaction: ChatInputCommandInteraction,
@@ -19,18 +19,18 @@ export async function executeStandings(
     const standings = await api.getStandings(competitionCode);
     if (standings.length === 0) {
       await interaction.editReply({
-        content: "No hay clasificación disponible.",
+        content: "No standings available.",
       });
       return;
     }
 
-    const competitionName = standings[0]?.group?.name || "Copa Mundial";
+    const competitionName = standings[0]?.group?.name || "World Cup";
     const embed = buildStandingsEmbed(standings, competitionName);
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
     console.error("[Command] Error in /standings:", error);
     await interaction.editReply({
-      content: "❌ Error al obtener la clasificación.",
+      content: "❌ Error fetching standings.",
     });
   }
 }

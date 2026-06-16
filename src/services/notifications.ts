@@ -2,7 +2,6 @@ import {
   Client,
   TextChannel,
   EmbedBuilder,
-  RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from "discord.js";
 import { Match, EventType } from "../types";
 import { isEventNotified, markEventNotified } from "./database";
@@ -12,7 +11,6 @@ import {
   buildMatchEndEmbed,
   buildRematchEmbed,
 } from "../utils/embeds";
-import { minutesUntil } from "../utils/timezone";
 
 export class NotificationService {
   private client: Client;
@@ -54,7 +52,7 @@ export class NotificationService {
 
     try {
       await channel.send({
-        content: roleMention ? `⏰ ${roleMention} ¡Faltan 5 minutos!` : undefined,
+        content: roleMention ? `⏰ ${roleMention} 5 minutes to kickoff!` : undefined,
         embeds: [embed],
       });
       await markEventNotified(match.id, EventType.REMINDER, new Date(match.utcDate));
@@ -76,7 +74,7 @@ export class NotificationService {
 
     try {
       await channel.send({
-        content: roleMention ? `🏟️ ${roleMention} ¡Comienza el partido!` : undefined,
+        content: roleMention ? `🏟️ ${roleMention} Match has started!` : undefined,
         embeds: [embed],
       });
       await markEventNotified(match.id, EventType.KICKOFF, new Date(match.utcDate));
@@ -98,7 +96,7 @@ export class NotificationService {
 
     try {
       await channel.send({
-        content: roleMention ? `⚽ ${roleMention} ¡GOOOOOL!` : undefined,
+        content: roleMention ? `⚽ ${roleMention} GOOOAL!` : undefined,
         embeds: [embed],
       });
       await markEventNotified(match.id, EventType.GOAL, new Date(match.utcDate));
@@ -119,7 +117,7 @@ export class NotificationService {
     const away = match.score.halfTime.away ?? 0;
 
     const embed = new EmbedBuilder()
-      .setTitle("⏸️ Entretiempo")
+      .setTitle("⏸️ Half Time")
       .setDescription(
         `**${match.homeTeam.name}** ${home} - ${away} **${match.awayTeam.name}**`
       )
@@ -151,7 +149,7 @@ export class NotificationService {
 
     try {
       await channel.send({
-        content: roleMention ? `🏁 ${roleMention} Partido finalizado` : undefined,
+        content: roleMention ? `🏁 ${roleMention} Full Time` : undefined,
         embeds: [embed],
       });
       await markEventNotified(match.id, EventType.FULLTIME, new Date(match.utcDate));

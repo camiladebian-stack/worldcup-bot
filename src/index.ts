@@ -119,7 +119,7 @@ async function main(): Promise<void> {
     const command = commands.get(interaction.commandName);
     if (!command) {
       await interaction.reply({
-        content: "Comando no reconocido.",
+        content: "Unknown command.",
         ephemeral: true,
       });
       return;
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
     } catch (error) {
       console.error(`[Bot] Error executing command ${interaction.commandName}:`, error);
       const reply = {
-        content: "❌ Ocurrió un error al ejecutar el comando.",
+        content: "❌ An error occurred while executing the command.",
         ephemeral: true,
       };
       if (interaction.replied || interaction.deferred) {

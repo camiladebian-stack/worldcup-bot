@@ -49,8 +49,8 @@ export function isToday(utcDateString: string): boolean {
 
 export function formatCountdown(utcDateString: string): string {
   const minutes = minutesUntil(utcDateString);
-  if (minutes < 0) return "Ya comenzó";
-  if (minutes === 0) return "¡Comienza ahora!";
+  if (minutes < 0) return "Already started";
+  if (minutes === 0) return "Starting now!";
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
