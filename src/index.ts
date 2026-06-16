@@ -57,6 +57,13 @@ const aiConfig: AIProviderConfig = {
   preferredProvider: AI_PROVIDER,
 };
 
+console.log("[Bot] AI Config:", {
+  provider: AI_PROVIDER,
+  groqKeySet: !!GROQ_API_KEY,
+  groqKeyLength: GROQ_API_KEY.length,
+  openrouterKeySet: !!AI_API_KEY,
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
