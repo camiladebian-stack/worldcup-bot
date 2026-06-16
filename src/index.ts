@@ -14,7 +14,6 @@ import { setApiKey } from "./services/api";
 import {
   initializePool,
   initializeDatabase,
-  getBotConfig,
   closePool,
 } from "./services/database";
 import { NotificationService } from "./services/notifications";
