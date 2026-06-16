@@ -1,10 +1,14 @@
+import { GoogleGenAI } from "@google/genai";
 import { Match } from "../types";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+// ── Configuration ───────────────────────────────────────────────────
 const REQUEST_TIMEOUT = 30_000;
 const MAX_INPUT_LENGTH = 2000;
+const GEMINI_MODEL = "gemini-2.0-flash";
 
-const MODELS = [
+// ── OpenRouter Configuration (Fallback) ─────────────────────────────
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const OPENROUTER_MODELS = [
   "deepseek/deepseek-chat-v3.1:free",
   "meta-llama/llama-3.3-70b-instruct:free",
   "qwen/qwen3-235b-a22b:free",
@@ -12,6 +16,14 @@ const MODELS = [
   "nvidia/nemotron-3-super-120b-a12b:free",
 ];
 
+// ── Types ───────────────────────────────────────────────────────────
+export interface AIProviderConfig {
+  geminiApiKey?: string;
+  openrouterApiKey?: string;
+  preferredProvider: "gemini" | "openrouter";
+}
+
+// ── Helper Functions ────────────────────────────────────────────────
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*\*/g, "")
@@ -24,14 +36,38 @@ function stripMarkdown(text: string): string {
     .replace(/^>\s/gm, "");
 }
 
-export async function askAI(
+// ── Google Gemini Provider ──────────────────────────────────────────
+async function askGemini(
   question: string,
-  apiKey: string
+  apiKey: string,
+  systemPrompt: string
+): Promise<string> {
+  const ai = new GoogleGenAI({ apiKey });
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: question,
+    config: {
+      systemInstruction: systemPrompt,
+      maxOutputTokens: 1024,
+      temperature: 0.7,
+    },
+  });
+
+  const text = response.text;
+  if (!text) throw new Error("Empty Gemini response");
+  return text;
+}
+
+// ── OpenRouter Provider (Fallback) ──────────────────────────────────
+async function askOpenRouter(
+  question: string,
+  apiKey: string,
+  systemPrompt: string
 ): Promise<string> {
   const truncated = question.slice(0, MAX_INPUT_LENGTH);
-  let lastError: Error | null = null;
 
-  for (const model of MODELS) {
+  for (const model of OPENROUTER_MODELS) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
@@ -47,11 +83,7 @@ export async function askAI(
         body: JSON.stringify({
           model,
           messages: [
-            {
-              role: "system",
-              content:
-                "You are a highly intelligent, direct, and concise assistant. Answer clearly and to the point without unnecessary explanations. Be helpful, accurate, and efficient. Do not use markdown formatting.",
-            },
+            { role: "system", content: systemPrompt },
             { role: "user", content: truncated },
           ],
           max_tokens: 1024,
@@ -60,36 +92,65 @@ export async function askAI(
         signal: controller.signal,
       });
 
+      clearTimeout(timeout);
+
       if (!response.ok) {
         const text = await response.text();
-        console.warn(`[AI] Model ${model} failed (${response.status}): ${text}`);
-        lastError = new Error(`AI API error ${response.status}`);
+        console.warn(`[AI] OpenRouter model ${model} failed (${response.status}): ${text}`);
         continue;
       }
 
       const data = (await response.json()) as any;
       const content = data.choices?.[0]?.message?.content;
+      if (!content) continue;
 
-      if (!content) {
-        lastError = new Error("Empty response from AI");
-        continue;
-      }
-
-      return stripMarkdown(content.trim());
+      return content.trim();
     } catch (error: any) {
-      console.warn(`[AI] Model ${model} error:`, error.message);
-      lastError = error;
-    } finally {
       clearTimeout(timeout);
+      console.warn(`[AI] OpenRouter model ${model} error:`, error.message);
     }
   }
 
-  throw lastError || new Error("All AI models failed");
+  throw new Error("All OpenRouter models failed");
+}
+
+// ── Main Functions (Dual Provider with Fallback) ────────────────────
+export async function askAI(
+  question: string,
+  config: AIProviderConfig
+): Promise<string> {
+  const truncated = question.slice(0, MAX_INPUT_LENGTH);
+  const systemPrompt =
+    "You are a highly intelligent, direct, and concise assistant. " +
+    "Answer clearly and to the point without unnecessary explanations. " +
+    "Be helpful, accurate, and efficient. Do not use markdown formatting.";
+
+  // Try Gemini first if configured
+  if (config.preferredProvider === "gemini" && config.geminiApiKey) {
+    try {
+      const result = await askGemini(truncated, config.geminiApiKey, systemPrompt);
+      return stripMarkdown(result);
+    } catch (error: any) {
+      console.warn("[AI] Gemini failed, falling back to OpenRouter:", error.message);
+    }
+  }
+
+  // Fallback to OpenRouter
+  if (config.openrouterApiKey) {
+    try {
+      const result = await askOpenRouter(truncated, config.openrouterApiKey, systemPrompt);
+      return stripMarkdown(result);
+    } catch (error: any) {
+      console.warn("[AI] OpenRouter failed:", error.message);
+    }
+  }
+
+  throw new Error("All AI providers failed. Check your API keys.");
 }
 
 export async function generateMatchAnalysis(
   match: Match,
-  apiKey: string
+  config: AIProviderConfig
 ): Promise<string> {
   const home = match.score.fullTime.home ?? 0;
   const away = match.score.fullTime.away ?? 0;
@@ -108,57 +169,29 @@ Stage: ${stage}${group ? ` | Group ${group}` : ""}${matchday ? ` | Matchday ${ma
 
 Write 3-4 short paragraphs. Be enthusiastic and engaging. Mention key moments implied by the score. If it was a big win, talk about dominance. If it was close, talk about the tension. If there was a big HT difference, mention the comeback or collapse. Keep it under 400 characters. Do not use markdown formatting.`;
 
-  let lastError: Error | null = null;
+  const systemPrompt =
+    "You are a fun, enthusiastic football commentator. " +
+    "Write engaging post-match analysis. Be concise and exciting. No markdown.";
 
-  for (const model of MODELS) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
+  // Try Gemini first if configured
+  if (config.preferredProvider === "gemini" && config.geminiApiKey) {
     try {
-      const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://github.com/camiladebian-stack/worldcup-bot",
-          "X-Title": "WorldCup Discord Bot",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a fun, enthusiastic football commentator. Write engaging post-match analysis. Be concise and exciting. No markdown.",
-            },
-            { role: "user", content: prompt },
-          ],
-          max_tokens: 300,
-          temperature: 0.8,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        lastError = new Error(`AI API error ${response.status}`);
-        continue;
-      }
-
-      const data = (await response.json()) as any;
-      const content = data.choices?.[0]?.message?.content;
-
-      if (!content) {
-        lastError = new Error("Empty response from AI");
-        continue;
-      }
-
-      return stripMarkdown(content.trim());
+      const result = await askGemini(prompt, config.geminiApiKey, systemPrompt);
+      return stripMarkdown(result);
     } catch (error: any) {
-      lastError = error;
-    } finally {
-      clearTimeout(timeout);
+      console.warn("[AI] Gemini analysis failed, falling back to OpenRouter:", error.message);
     }
   }
 
-  throw lastError || new Error("All AI models failed");
+  // Fallback to OpenRouter
+  if (config.openrouterApiKey) {
+    try {
+      const result = await askOpenRouter(prompt, config.openrouterApiKey, systemPrompt);
+      return stripMarkdown(result);
+    } catch (error: any) {
+      console.warn("[AI] OpenRouter analysis failed:", error.message);
+    }
+  }
+
+  throw new Error("All AI providers failed for match analysis.");
 }

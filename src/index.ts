@@ -18,7 +18,7 @@ import express from "express";
 import dotenv from "dotenv";
 
 import { setApiKey } from "./services/api";
-import { askAI } from "./services/ai";
+import { askAI, AIProviderConfig } from "./services/ai";
 import {
   initializePool,
   initializeDatabase,
@@ -43,10 +43,19 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const NOTIFICATION_CHANNEL_ID = process.env.NOTIFICATION_CHANNEL_ID!;
 const PING_ROLE_ID = process.env.PING_ROLE_ID || "";
 const COMPETITION_CODE = process.env.COMPETITION_CODE || "WC";
+const AI_PROVIDER = (process.env.AI_PROVIDER || "openrouter") as "gemini" | "openrouter";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const AI_API_KEY = process.env.AI_API_KEY || "";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
 const MAX_AI_INPUT = 2000;
+
+// AI Provider Configuration
+const aiConfig: AIProviderConfig = {
+  geminiApiKey: GEMINI_API_KEY,
+  openrouterApiKey: AI_API_KEY,
+  preferredProvider: AI_PROVIDER,
+};
 
 const client = new Client({
   intents: [
@@ -127,7 +136,7 @@ async function initializeBot(): Promise<void> {
     PING_ROLE_ID
   );
 
-  pollingService = new PollingService(notificationService, COMPETITION_CODE, AI_API_KEY);
+  pollingService = new PollingService(notificationService, COMPETITION_CODE, aiConfig);
   countdownService = new CountdownService(client, NOTIFICATION_CHANNEL_ID, COMPETITION_CODE);
 }
 
@@ -210,7 +219,7 @@ async function main(): Promise<void> {
     }
 
     if (!message.content.startsWith("!ai ")) return;
-    if (!AI_API_KEY) return;
+    if (!aiConfig.geminiApiKey && !aiConfig.openrouterApiKey) return;
 
     const question = message.content.slice(4).trim();
     if (!question) {
@@ -225,7 +234,7 @@ async function main(): Promise<void> {
 
     try {
       await message.channel.sendTyping();
-      const answer = await askAI(question, AI_API_KEY);
+      const answer = await askAI(question, aiConfig);
 
       if (answer.length > 2000) {
         const buffer = Buffer.from(answer, "utf-8");

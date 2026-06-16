@@ -1,24 +1,24 @@
 import { Match, MatchStatus, EventType } from "../types";
 import { NotificationService } from "./notifications";
 import * as api from "./api";
-import { generateMatchAnalysis } from "./ai";
+import { generateMatchAnalysis, AIProviderConfig } from "./ai";
 import { cleanupOldEvents, isEventNotified } from "./database";
 import { minutesUntil } from "../utils/timezone";
 
 export class PollingService {
   private notificationService: NotificationService;
   private competitionCode: string;
-  private aiApiKey: string;
+  private aiConfig: AIProviderConfig;
   private pollInterval: NodeJS.Timeout | null = null;
   private retryTimeout: NodeJS.Timeout | null = null;
   private isRunning = false;
   private lastScores = new Map<number, string>();
   private initializedScores = new Set<number>();
 
-  constructor(notificationService: NotificationService, competitionCode: string, aiApiKey: string) {
+  constructor(notificationService: NotificationService, competitionCode: string, aiConfig: AIProviderConfig) {
     this.notificationService = notificationService;
     this.competitionCode = competitionCode;
-    this.aiApiKey = aiApiKey;
+    this.aiConfig = aiConfig;
   }
 
   start(): void {
@@ -152,8 +152,8 @@ export class PollingService {
     this.lastScores.delete(match.id);
     this.initializedScores.delete(match.id);
 
-    if (this.aiApiKey) {
-      generateMatchAnalysis(match, this.aiApiKey)
+    if (this.aiConfig.geminiApiKey || this.aiConfig.openrouterApiKey) {
+      generateMatchAnalysis(match, this.aiConfig)
         .then((analysis) => this.notificationService.sendAnalysis(match, analysis))
         .catch((err) => console.error("[Polling] Failed to generate analysis:", err));
     }
