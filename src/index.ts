@@ -31,6 +31,7 @@ import { matchCommand, executeMatch } from "./commands/match";
 import { timezoneCommand, executeTimezone } from "./commands/timezone";
 import { helpCommand, executeHelp } from "./commands/help";
 import { standingsCommand, executeStandings } from "./commands/standings";
+import { countdownCommand, executeCountdown } from "./commands/countdown";
 
 dotenv.config();
 
@@ -66,6 +67,7 @@ commands.set("match", (interaction) => executeMatch(interaction, COMPETITION_COD
 commands.set("timezone", executeTimezone);
 commands.set("help", executeHelp);
 commands.set("standings", (interaction) => executeStandings(interaction, COMPETITION_CODE));
+commands.set("countdown", (interaction) => executeCountdown(interaction, COMPETITION_CODE));
 
 async function registerCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
@@ -75,6 +77,7 @@ async function registerCommands(): Promise<void> {
     timezoneCommand.toJSON(),
     helpCommand.toJSON(),
     standingsCommand.toJSON(),
+    countdownCommand.toJSON(),
   ];
 
   console.log("[Bot] Registering slash commands...");
