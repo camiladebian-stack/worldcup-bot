@@ -7,6 +7,13 @@ import {
   Events,
   ChatInputCommandInteraction,
 } from "discord.js";
+import {
+  joinVoiceChannel,
+  VoiceConnection,
+  getVoiceConnection,
+  VoiceConnectionStatus,
+  entersState,
+} from "@discordjs/voice";
 import express from "express";
 import dotenv from "dotenv";
 
@@ -44,6 +51,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
@@ -152,6 +160,49 @@ async function main(): Promise<void> {
 
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
+
+    if (message.content === "!join") {
+      const member = message.member;
+      if (!member || !member.voice.channel) {
+        await message.reply("You need to be in a voice channel first.").catch(() => {});
+        return;
+      }
+
+      const channel = member.voice.channel;
+
+      try {
+        const connection: VoiceConnection = joinVoiceChannel({
+          channelId: channel.id,
+          guildId: channel.guild.id,
+          adapterCreator: channel.guild.voiceAdapterCreator,
+          selfDeaf: true,
+        });
+
+        await message.reply(`Joined **${channel.name}**`).catch(() => {});
+        console.log(`[Voice] Joined voice channel: ${channel.name} in ${channel.guild.name}`);
+      } catch (error) {
+        console.error("[Voice] Failed to join:", error);
+        await message.reply("Failed to join voice channel.").catch(() => {});
+      }
+      return;
+    }
+
+    if (message.content === "!leave") {
+      const guildId = message.guild?.id;
+      if (!guildId) return;
+
+      const connection = getVoiceConnection(guildId);
+      if (!connection) {
+        await message.reply("I'm not in a voice channel.").catch(() => {});
+        return;
+      }
+
+      connection.destroy();
+      await message.reply("Left the voice channel.").catch(() => {});
+      console.log(`[Voice] Left voice channel in guild ${guildId}`);
+      return;
+    }
+
     if (!message.content.startsWith("!ai ")) return;
     if (!AI_API_KEY) return;
 
@@ -209,6 +260,10 @@ async function main(): Promise<void> {
   process.on("SIGTERM", async () => {
     console.log("[Bot] Received SIGTERM, shutting down...");
     pollingService?.stop();
+    for (const guild of client.guilds.cache.values()) {
+      const conn = getVoiceConnection(guild.id);
+      if (conn) conn.destroy();
+    }
     await closePool();
     client.destroy();
     process.exit(0);
@@ -217,6 +272,10 @@ async function main(): Promise<void> {
   process.on("SIGINT", async () => {
     console.log("[Bot] Received SIGINT, shutting down...");
     pollingService?.stop();
+    for (const guild of client.guilds.cache.values()) {
+      const conn = getVoiceConnection(guild.id);
+      if (conn) conn.destroy();
+    }
     await closePool();
     client.destroy();
     process.exit(0);
