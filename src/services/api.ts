@@ -9,30 +9,57 @@ export function setApiKey(key: string): void {
   apiKey = key;
 }
 
-async function fetchApi<T>(endpoint: string): Promise<T> {
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 2_000;
+
+async function fetchApi<T>(endpoint: string, retries = MAX_RETRIES): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-  try {
-    const response = await fetch(url, {
-      headers: { "X-Auth-Token": apiKey },
-      signal: controller.signal,
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    if (response.status === 429) {
-      const retryAfter = response.headers.get("Retry-After") || "60";
-      throw new Error(`RATE_LIMITED:${retryAfter}`);
+    try {
+      const response = await fetch(url, {
+        headers: { "X-Auth-Token": apiKey },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get("Retry-After") || "60") * 1000;
+        if (attempt < retries) {
+          console.warn(`[API] Rate limited, retrying in ${retryAfter / 1000}s...`);
+          await new Promise((r) => setTimeout(r, retryAfter));
+          continue;
+        }
+        throw new Error(`RATE_LIMITED:${retryAfter / 1000}`);
+      }
+
+      if (response.status >= 500 && attempt < retries) {
+        console.warn(`[API] Server error ${response.status}, retrying in ${RETRY_DELAY_MS / 1000}s...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`API_ERROR:${response.status}:${response.statusText}`);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error: any) {
+      clearTimeout(timeout);
+      if (error.name === "AbortError" && attempt < retries) {
+        console.warn(`[API] Request timeout, retrying...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      throw error;
     }
-
-    if (!response.ok) {
-      throw new Error(`API_ERROR:${response.status}:${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw new Error(`API_ERROR: Max retries exceeded for ${endpoint}`);
 }
 
 export async function getTodayMatches(competitionCode: string): Promise<Match[]> {

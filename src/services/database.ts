@@ -1,4 +1,4 @@
-import { Pool, QueryResult, QueryResultRow } from "pg";
+import { Pool } from "pg";
 
 let pool: Pool | null = null;
 let useDatabase = false;
@@ -112,14 +112,24 @@ export async function markEventNotified(
 }
 
 export async function cleanupOldEvents(daysOld: number = 7): Promise<void> {
-  if (!useDatabase || !pool) return;
-  try {
-    await pool.query(
-      "DELETE FROM notified_events WHERE match_date < NOW() - ($1 || ' days')::INTERVAL",
-      [daysOld]
-    );
-  } catch {
-    // ignore
+  if (useDatabase && pool) {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - daysOld);
+      await pool.query(
+        "DELETE FROM notified_events WHERE match_date < $1",
+        [cutoff]
+      );
+    } catch {
+      // ignore
+    }
+  }
+  const cutoff = Date.now() - daysOld * 86_400_000;
+  for (const [key] of notifiedEvents) {
+    const matchId = parseInt(key.split(":")[0]);
+    if (matchId < cutoff) {
+      notifiedEvents.delete(key);
+    }
   }
 }
 

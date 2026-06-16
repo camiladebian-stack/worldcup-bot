@@ -11,11 +11,11 @@ const GROQ_MODEL = "llama-3.3-70b-versatile";
 // ── OpenRouter Configuration (Fallback) ─────────────────────────────
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS = [
-  "deepseek/deepseek-chat-v3.1:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "qwen/qwen3-235b-a22b:free",
-  "openai/gpt-oss-120b:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
+  "openrouter/free",
+  "meta-llama/llama-4-scout:free",
+  "google/gemma-3-27b-it:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
 ];
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -190,6 +190,7 @@ export async function askAI(
     if (!isProviderAvailable(provider, config)) continue;
     try {
       const result = await askWithProvider(provider, truncated, config, systemPrompt);
+      console.log(`[AI] Response from ${provider} (${result.length} chars)`);
       return stripMarkdown(result);
     } catch (error: any) {
       console.warn(`[AI] ${provider} failed:`, error.message);
@@ -232,6 +233,7 @@ Write 3-4 short paragraphs. Be enthusiastic and engaging. Mention key moments im
     if (!isProviderAvailable(provider, config)) continue;
     try {
       const result = await askWithProvider(provider, prompt, config, systemPrompt);
+      console.log(`[AI] Analysis from ${provider} (${result.length} chars)`);
       return stripMarkdown(result);
     } catch (error: any) {
       console.warn(`[AI] ${provider} analysis failed:`, error.message);

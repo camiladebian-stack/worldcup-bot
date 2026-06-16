@@ -11,8 +11,6 @@ import {
   joinVoiceChannel,
   VoiceConnection,
   getVoiceConnection,
-  VoiceConnectionStatus,
-  entersState,
 } from "@discordjs/voice";
 import express from "express";
 import dotenv from "dotenv";
@@ -63,6 +61,9 @@ console.log("[Bot] AI Config:", {
   groqKeyLength: GROQ_API_KEY.length,
   openrouterKeySet: !!AI_API_KEY,
 });
+
+const AI_COOLDOWN_MS = 10_000;
+const aiCooldowns = new Map<string, number>();
 
 const client = new Client({
   intents: [
@@ -228,6 +229,15 @@ async function main(): Promise<void> {
     if (!message.content.startsWith("!ai ")) return;
     if (!aiConfig.groqApiKey && !aiConfig.openrouterApiKey) return;
 
+    const userId = message.author.id;
+    const now = Date.now();
+    const lastUsed = aiCooldowns.get(userId) || 0;
+    if (now - lastUsed < AI_COOLDOWN_MS) {
+      const waitSec = Math.ceil((AI_COOLDOWN_MS - (now - lastUsed)) / 1000);
+      await message.reply(`⏳ Wait ${waitSec}s before asking again.`).catch(() => {});
+      return;
+    }
+
     const question = message.content.slice(4).trim();
     if (!question) {
       await message.reply("Usage: `!ai <your question>`").catch(() => {});
@@ -242,6 +252,7 @@ async function main(): Promise<void> {
     try {
       await message.channel.sendTyping();
       const answer = await askAI(question, aiConfig);
+      aiCooldowns.set(userId, Date.now());
 
       if (answer.length > 2000) {
         const buffer = Buffer.from(answer, "utf-8");
