@@ -19,7 +19,7 @@ export async function askAI(
         {
           role: "system",
           content:
-            "You are a helpful assistant. Answer concisely and clearly. If the question is about football or the World Cup, provide accurate information.",
+            "You are a highly intelligent, direct, and concise assistant. Answer clearly and to the point without unnecessary explanations. Be helpful, accurate, and efficient.",
         },
         { role: "user", content: question },
       ],
