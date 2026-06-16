@@ -67,7 +67,17 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_notified_events_date
         ON notified_events(match_date);
     `);
-    console.log("[DB] Database tables initialized");
+
+    const result = await pool.query("SELECT COUNT(*) as total FROM notified_events");
+    const total = parseInt(result.rows[0].total, 10);
+    console.log(`[DB] Database initialized with ${total} already-notified events`);
+
+    const byType = await pool.query(
+      "SELECT event_type, COUNT(*) as count FROM notified_events GROUP BY event_type"
+    );
+    for (const row of byType.rows) {
+      console.log(`[DB]   ${row.event_type}: ${row.count}`);
+    }
   } catch (error) {
     console.warn("[DB] Failed to initialize database, falling back to in-memory:", error);
     useDatabase = false;
@@ -116,18 +126,24 @@ export async function cleanupOldEvents(daysOld: number = 7): Promise<void> {
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - daysOld);
-      await pool.query(
+      const cutoffStr = cutoff.toISOString().split("T")[0]; // YYYY-MM-DD
+      const result = await pool.query(
         "DELETE FROM notified_events WHERE match_date < $1",
-        [cutoff]
+        [cutoffStr]
       );
+      if (result.rowCount! > 0) {
+        console.log(`[DB] Cleaned up ${result.rowCount} old notified events`);
+      }
     } catch {
       // ignore
     }
   }
-  const cutoff = Date.now() - daysOld * 86_400_000;
+  // In-memory cleanup: remove entries for matches older than daysOld
+  const cutoffMs = Date.now() - daysOld * 86_400_000;
   for (const [key] of notifiedEvents) {
-    const matchId = parseInt(key.split(":")[0]);
-    if (matchId < cutoff) {
+    const parts = key.split(":");
+    const matchId = parseInt(parts[0], 10);
+    if (!isNaN(matchId) && matchId < cutoffMs) {
       notifiedEvents.delete(key);
     }
   }
