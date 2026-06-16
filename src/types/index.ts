@@ -1,8 +1,3 @@
-import {
-  RESTPostAPIChatInputApplicationCommandsJSONBody,
-  SlashCommandBuilder,
-} from "discord.js";
-
 export interface Match {
   id: number;
   competition: { id: number; name: string; emblem: string };
@@ -72,31 +67,12 @@ export interface StandingEntry {
   goalDifference: number;
 }
 
-export interface CommandDefinition {
-  data: SlashCommandBuilder;
-  execute: (...args: any[]) => Promise<void>;
-}
-
-export interface MatchEvent {
-  id: string;
-  matchId: number;
-  type: EventType;
-  notifiedAt: Date;
-}
-
 export enum EventType {
   KICKOFF = "kickoff",
   GOAL = "goal",
   HALFTIME = "halftime",
   FULLTIME = "fulltime",
   REMINDER = "reminder",
-}
-
-export interface BotConfig {
-  notificationChannelId: string;
-  pingRoleId: string;
-  competitionCode: string;
-  guildId: string;
 }
 
 export interface ApiResponse<T> {

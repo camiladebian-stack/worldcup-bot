@@ -23,11 +23,6 @@ export class NotificationService {
     this.roleId = roleId;
   }
 
-  updateConfig(channelId: string, roleId: string): void {
-    this.channelId = channelId;
-    this.roleId = roleId;
-  }
-
   private getChannel(): TextChannel | null {
     const channel = this.client.channels.cache.get(this.channelId);
     if (!channel || !("send" in channel)) {
@@ -41,77 +36,65 @@ export class NotificationService {
     return `<@&${this.roleId}>`;
   }
 
+  private async safeSend(options: { content?: string; embeds: EmbedBuilder[] }): Promise<boolean> {
+    const channel = this.getChannel();
+    if (!channel) return false;
+    try {
+      await channel.send(options);
+      return true;
+    } catch (error) {
+      console.error("[Notification] Failed to send message:", error);
+      return false;
+    }
+  }
+
   async sendReminder(match: Match): Promise<boolean> {
     if (await isEventNotified(match.id, EventType.REMINDER)) return false;
 
-    const channel = this.getChannel();
-    if (!channel) return false;
-
-    const embed = buildRematchEmbed(match);
     const roleMention = this.getRoleMention();
+    const sent = await this.safeSend({
+      content: roleMention ? `⏰ ${roleMention} 5 minutes to kickoff!` : undefined,
+      embeds: [buildRematchEmbed(match)],
+    });
 
-    try {
-      await channel.send({
-        content: roleMention ? `⏰ ${roleMention} 5 minutes to kickoff!` : undefined,
-        embeds: [embed],
-      });
+    if (sent) {
       await markEventNotified(match.id, EventType.REMINDER, new Date(match.utcDate));
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send reminder:", error);
-      return false;
     }
+    return sent;
   }
 
   async sendKickoff(match: Match): Promise<boolean> {
     if (await isEventNotified(match.id, EventType.KICKOFF)) return false;
 
-    const channel = this.getChannel();
-    if (!channel) return false;
-
-    const embed = buildMatchStartEmbed(match);
     const roleMention = this.getRoleMention();
+    const sent = await this.safeSend({
+      content: roleMention ? `🏟️ ${roleMention} Match has started!` : undefined,
+      embeds: [buildMatchStartEmbed(match)],
+    });
 
-    try {
-      await channel.send({
-        content: roleMention ? `🏟️ ${roleMention} Match has started!` : undefined,
-        embeds: [embed],
-      });
+    if (sent) {
       await markEventNotified(match.id, EventType.KICKOFF, new Date(match.utcDate));
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send kickoff:", error);
-      return false;
     }
+    return sent;
   }
 
   async sendGoal(match: Match): Promise<boolean> {
     if (await isEventNotified(match.id, EventType.GOAL)) return false;
 
-    const channel = this.getChannel();
-    if (!channel) return false;
-
-    const embed = buildGoalEmbed(match);
     const roleMention = this.getRoleMention();
+    const sent = await this.safeSend({
+      content: roleMention ? `⚽ ${roleMention} GOOOAL!` : undefined,
+      embeds: [buildGoalEmbed(match)],
+    });
 
-    try {
-      await channel.send({
-        content: roleMention ? `⚽ ${roleMention} GOOOAL!` : undefined,
-        embeds: [embed],
-      });
+    if (sent) {
       await markEventNotified(match.id, EventType.GOAL, new Date(match.utcDate));
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send goal:", error);
-      return false;
     }
+    return sent;
   }
 
   async sendHalftime(match: Match): Promise<boolean> {
     if (await isEventNotified(match.id, EventType.HALFTIME)) return false;
-
-    const channel = this.getChannel();
-    if (!channel) return false;
 
     const home = match.score.halfTime.home ?? 0;
     const away = match.score.halfTime.away ?? 0;
@@ -128,48 +111,25 @@ export class NotificationService {
       embed.setThumbnail(match.homeTeam.crest);
     }
 
-    try {
-      await channel.send({ embeds: [embed] });
+    const sent = await this.safeSend({ embeds: [embed] });
+    if (sent) {
       await markEventNotified(match.id, EventType.HALFTIME, new Date(match.utcDate));
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send halftime:", error);
-      return false;
     }
+    return sent;
   }
 
   async sendFullTime(match: Match): Promise<boolean> {
     if (await isEventNotified(match.id, EventType.FULLTIME)) return false;
 
-    const channel = this.getChannel();
-    if (!channel) return false;
-
-    const embed = buildMatchEndEmbed(match);
     const roleMention = this.getRoleMention();
+    const sent = await this.safeSend({
+      content: roleMention ? `🏁 ${roleMention} Full Time` : undefined,
+      embeds: [buildMatchEndEmbed(match)],
+    });
 
-    try {
-      await channel.send({
-        content: roleMention ? `🏁 ${roleMention} Full Time` : undefined,
-        embeds: [embed],
-      });
+    if (sent) {
       await markEventNotified(match.id, EventType.FULLTIME, new Date(match.utcDate));
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send fulltime:", error);
-      return false;
     }
-  }
-
-  async sendRaw(embed: EmbedBuilder, content?: string): Promise<boolean> {
-    const channel = this.getChannel();
-    if (!channel) return false;
-
-    try {
-      await channel.send({ content, embeds: [embed] });
-      return true;
-    } catch (error) {
-      console.error("[Notification] Failed to send message:", error);
-      return false;
-    }
+    return sent;
   }
 }

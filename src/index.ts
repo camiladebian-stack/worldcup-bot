@@ -30,12 +30,14 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN!;
 const CLIENT_ID = process.env.CLIENT_ID!;
 const GUILD_ID = process.env.GUILD_ID!;
 const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY!;
-const DATABASE_URL = process.env.DATABASE_URL!;
+const DATABASE_URL = process.env.DATABASE_URL || "";
 const NOTIFICATION_CHANNEL_ID = process.env.NOTIFICATION_CHANNEL_ID!;
 const PING_ROLE_ID = process.env.PING_ROLE_ID || "";
 const COMPETITION_CODE = process.env.COMPETITION_CODE || "WC";
 const AI_API_KEY = process.env.AI_API_KEY || "";
 const PORT = parseInt(process.env.PORT || "3000", 10);
+
+const MAX_AI_INPUT = 2000;
 
 const client = new Client({
   intents: [
@@ -85,15 +87,16 @@ function setupHealthCheck(): void {
     });
   });
 
-  app.get("/", (_req, res) => {
-    res.json({
-      name: "worldcup-discord-bot",
-      status: "running",
-    });
+  const server = app.listen(PORT, () => {
+    console.log(`[Health] Health check server running on port ${PORT}`);
   });
 
-  app.listen(PORT, () => {
-    console.log(`[Health] Health check server running on port ${PORT}`);
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`[Health] Port ${PORT} is already in use`);
+    } else {
+      console.error("[Health] Server error:", err);
+    }
   });
 }
 
@@ -140,9 +143,9 @@ async function main(): Promise<void> {
         ephemeral: true,
       };
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(reply);
+        await interaction.followUp(reply).catch(() => {});
       } else {
-        await interaction.reply(reply);
+        await interaction.reply(reply).catch(() => {});
       }
     }
   });
@@ -152,9 +155,14 @@ async function main(): Promise<void> {
     if (!message.content.startsWith("!ai ")) return;
     if (!AI_API_KEY) return;
 
-    const question = message.content.slice(5).trim();
+    const question = message.content.slice(4).trim();
     if (!question) {
-      await message.reply("Usage: `!ai <your question>`");
+      await message.reply("Usage: `!ai <your question>`").catch(() => {});
+      return;
+    }
+
+    if (question.length > MAX_AI_INPUT) {
+      await message.reply(`Message too long. Maximum ${MAX_AI_INPUT} characters.`).catch(() => {});
       return;
     }
 
@@ -167,13 +175,13 @@ async function main(): Promise<void> {
         await message.reply({
           content: "Response too long, here's the full text:",
           files: [{ attachment: buffer, name: "response.txt" }],
-        });
+        }).catch(() => {});
       } else {
-        await message.reply(answer);
+        await message.reply(answer).catch(() => {});
       }
     } catch (error: any) {
       console.error("[Bot] AI error:", error);
-      await message.reply("❌ Error getting AI response. Please try again.");
+      await message.reply("❌ Error getting AI response. Please try again.").catch(() => {});
     }
   });
 

@@ -13,19 +13,32 @@ export function isDatabaseAvailable(): boolean {
   return useDatabase;
 }
 
-export function initializePool(databaseUrl: string): Pool {
+function isValidDatabaseUrl(url: string): boolean {
+  if (!url) return false;
+  if (url.includes("user:password@") || url.includes("@host:") || url.includes("@host/")) return false;
+  try {
+    new URL(url);
+    return url.startsWith("postgresql://") || url.startsWith("postgres://");
+  } catch {
+    return false;
+  }
+}
+
+export function initializePool(databaseUrl: string): Pool | null {
   if (pool) return pool;
-  if (!databaseUrl || databaseUrl.includes("@host:") || databaseUrl.includes("@host/")) {
+
+  if (!isValidDatabaseUrl(databaseUrl)) {
     console.log("[DB] No valid DATABASE_URL found, using in-memory storage");
     useDatabase = false;
-    return null as any;
+    return null;
   }
+
   pool = new Pool({
     connectionString: databaseUrl,
     ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
     max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
   });
   useDatabase = true;
   return pool;
@@ -46,14 +59,6 @@ export async function initializeDatabase(): Promise<void> {
         notified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         match_date DATE,
         UNIQUE(match_id, event_type)
-      );
-
-      CREATE TABLE IF NOT EXISTS bot_config (
-        guild_id VARCHAR(50) PRIMARY KEY,
-        notification_channel_id VARCHAR(50),
-        ping_role_id VARCHAR(50),
-        competition_code VARCHAR(20) DEFAULT 'WC',
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
 
       CREATE INDEX IF NOT EXISTS idx_notified_events_match_id
@@ -110,7 +115,7 @@ export async function cleanupOldEvents(daysOld: number = 7): Promise<void> {
   if (!useDatabase || !pool) return;
   try {
     await pool.query(
-      "DELETE FROM notified_events WHERE match_date < NOW() - INTERVAL '1 day' * $1",
+      "DELETE FROM notified_events WHERE match_date < NOW() - ($1 || ' days')::INTERVAL",
       [daysOld]
     );
   } catch {

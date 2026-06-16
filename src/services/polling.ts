@@ -8,15 +8,12 @@ export class PollingService {
   private notificationService: NotificationService;
   private competitionCode: string;
   private pollInterval: NodeJS.Timeout | null = null;
+  private retryTimeout: NodeJS.Timeout | null = null;
   private isRunning = false;
-  private lastScores: Map<number, string> = new Map();
+  private lastScores = new Map<number, string>();
+  private initializedScores = new Set<number>();
 
   constructor(notificationService: NotificationService, competitionCode: string) {
-    this.notificationService = notificationService;
-    this.competitionCode = competitionCode;
-  }
-
-  updateConfig(notificationService: NotificationService, competitionCode: string): void {
     this.notificationService = notificationService;
     this.competitionCode = competitionCode;
   }
@@ -25,23 +22,53 @@ export class PollingService {
     if (this.isRunning) return;
     this.isRunning = true;
     console.log("[Polling] Starting match polling service");
-
-    this.poll();
-    this.pollInterval = setInterval(() => this.poll(), 30_000);
+    this.schedulePoll(0);
   }
 
   stop(): void {
+    this.isRunning = false;
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
-    this.isRunning = false;
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
+    this.lastScores.clear();
+    this.initializedScores.clear();
     console.log("[Polling] Stopped match polling service");
   }
 
+  private schedulePoll(delayMs: number): void {
+    if (!this.isRunning) return;
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    if (this.retryTimeout) {
+      clearTimeout(this.retryTimeout);
+      this.retryTimeout = null;
+    }
+
+    if (delayMs > 0) {
+      this.retryTimeout = setTimeout(() => {
+        this.retryTimeout = null;
+        this.poll();
+        this.pollInterval = setInterval(() => this.poll(), 30_000);
+      }, delayMs);
+    } else {
+      this.poll();
+      this.pollInterval = setInterval(() => this.poll(), 30_000);
+    }
+  }
+
   private async poll(): Promise<void> {
+    if (!this.isRunning) return;
+
     try {
       const allMatches = await api.getAllActiveMatches(this.competitionCode);
+
       const liveMatches = allMatches.filter(
         (m) => m.status === MatchStatus.IN_PLAY || m.status === MatchStatus.PAUSED
       );
@@ -76,13 +103,7 @@ export class PollingService {
       if (typeof error?.message === "string" && error.message.startsWith("RATE_LIMITED:")) {
         const retryAfter = parseInt(error.message.split(":")[1]) || 60;
         console.warn(`[Polling] Rate limited, backing off ${retryAfter}s`);
-        if (this.pollInterval) {
-          clearInterval(this.pollInterval);
-          this.pollInterval = setTimeout(() => {
-            this.pollInterval = setInterval(() => this.poll(), 30_000);
-            this.poll();
-          }, retryAfter * 1000) as unknown as NodeJS.Timeout;
-        }
+        this.schedulePoll(retryAfter * 1000);
       } else {
         console.error("[Polling] Error during poll:", error);
       }
@@ -91,52 +112,41 @@ export class PollingService {
 
   private async processPreMatch(match: Match): Promise<void> {
     const minutes = minutesUntil(match.utcDate);
+    if (minutes > 5 || minutes < -2) return;
 
-    if (minutes <= 5 && minutes >= -2) {
-      const kickoffNotified = await isEventNotified(match.id, EventType.KICKOFF);
-      const reminderNotified = await isEventNotified(match.id, EventType.REMINDER);
-
-      if (!reminderNotified && minutes > 0) {
-        await this.notificationService.sendReminder(match);
-      }
-
-      if (!kickoffNotified && minutes <= 0) {
-        await this.notificationService.sendKickoff(match);
-      }
+    if (minutes > 0) {
+      await this.notificationService.sendReminder(match);
+    } else if (minutes <= 0) {
+      await this.notificationService.sendKickoff(match);
     }
   }
 
   private async processLiveMatch(match: Match): Promise<void> {
-    const kickoffNotified = await isEventNotified(match.id, EventType.KICKOFF);
-    if (!kickoffNotified) {
-      await this.notificationService.sendKickoff(match);
+    await this.notificationService.sendKickoff(match);
+
+    const scoreKey = `${match.score.fullTime.home ?? 0}-${match.score.fullTime.away ?? 0}`;
+
+    if (!this.initializedScores.has(match.id)) {
+      this.initializedScores.add(match.id);
+      this.lastScores.set(match.id, scoreKey);
+      return;
     }
 
-    const currentScoreKey = `${match.score.fullTime.home ?? 0}-${match.score.fullTime.away ?? 0}`;
-    const previousScoreKey = this.lastScores.get(match.id);
-
-    if (previousScoreKey && previousScoreKey !== currentScoreKey) {
-      const goalNotified = await isEventNotified(match.id, EventType.GOAL);
-      if (!goalNotified) {
-        await this.notificationService.sendGoal(match);
-      }
+    const previousScore = this.lastScores.get(match.id);
+    if (previousScore && previousScore !== scoreKey) {
+      await this.notificationService.sendGoal(match);
     }
 
-    this.lastScores.set(match.id, currentScoreKey);
+    this.lastScores.set(match.id, scoreKey);
 
     if (match.status === MatchStatus.PAUSED) {
-      const halftimeNotified = await isEventNotified(match.id, EventType.HALFTIME);
-      if (!halftimeNotified) {
-        await this.notificationService.sendHalftime(match);
-      }
+      await this.notificationService.sendHalftime(match);
     }
   }
 
   private async processFinishedMatch(match: Match): Promise<void> {
-    const fulltimeNotified = await isEventNotified(match.id, EventType.FULLTIME);
-    if (!fulltimeNotified) {
-      await this.notificationService.sendFullTime(match);
-    }
+    await this.notificationService.sendFullTime(match);
     this.lastScores.delete(match.id);
+    this.initializedScores.delete(match.id);
   }
 }
