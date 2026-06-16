@@ -149,12 +149,12 @@ async function main(): Promise<void> {
 
   client.on(Events.MessageCreate, async (message) => {
     if (message.author.bot) return;
-    if (!message.content.startsWith("!ask ")) return;
+    if (!message.content.startsWith("!ai ")) return;
     if (!AI_API_KEY) return;
 
     const question = message.content.slice(5).trim();
     if (!question) {
-      await message.reply("Usage: `!ask <your question>`");
+      await message.reply("Usage: `!ai <your question>`");
       return;
     }
 
